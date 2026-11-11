@@ -55,18 +55,32 @@ footer {visibility:hidden;}
 [data-testid="stDeployButton"] {display:none;}
 [data-testid="stHeader"] {background:transparent;}
 
-/* Strict RTL + typography */
-html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stSidebar"],
-[data-testid="stMarkdownContainer"], label, p, h1, h2, h3, h4, li, input, textarea {
-    direction:rtl; text-align:right; font-family:'Heebo',sans-serif !important; color:var(--text);
+/* ---------------------------------------------------- */
+/* תיקון ה-RTL: החלת עברית רק על התוכן ולא על המעטפת    */
+/* זה מה שמונע מסרגל הצד להישבר ולהידחס בטלפון הנייד    */
+/* ---------------------------------------------------- */
+.block-container, [data-testid="stSidebarContent"], [data-testid="stMarkdownContainer"], 
+label, p, h1, h2, h3, h4, li, input, textarea, .stTabs [data-baseweb="tab-list"], [data-testid="stExpander"] summary {
+    direction: rtl; 
+    text-align: right; 
+    font-family: 'Heebo', sans-serif !important; 
+    color: var(--text);
 }
+
 .stApp { background:var(--bg); }
 .block-container { padding-top:2rem !important; }
-[data-testid="stSidebar"] { background:#fff; box-shadow:-4px 0 24px rgba(0,0,0,.05); }
+
+/* נראות סרגל הצד */
+[data-testid="stSidebar"] { background:#fff; box-shadow:-4px 0 24px rgba(0,0,0,.05); border: none !important; }
+
+/* תיקון סליידר המחירים כדי שיעבוד נכון */
 [data-testid="stSlider"] > div { direction:ltr; }
 [data-testid="stSlider"] label { direction:rtl; text-align:right; }
-.stTabs [data-baseweb="tab-list"], [data-testid="stExpander"] summary { direction:rtl; }
-@media (min-width: 769px) { [data-testid="stAppViewContainer"] { flex-direction:row-reverse; } } /* sidebar on the right */
+
+/* במסכים גדולים (מחשב) - העברת סרגל הצד לימין */
+@media (min-width: 769px) { 
+    [data-testid="stAppViewContainer"] { flex-direction:row-reverse; } 
+}
 
 /* Buttons */
 button[kind^="primary"], [data-testid^="stBaseButton-primary"], [data-testid="stBaseLinkButton-primary"] {
@@ -80,7 +94,7 @@ button[kind^="primary"]:hover, [data-testid^="stBaseButton-primary"]:hover, [dat
 [data-testid="stBaseLinkButton-primary"] p { color:#fff !important; text-align:center; }
 [data-testid="stBaseButton-secondary"] { border-radius:12px; width:100%; }
 
-/* Cards (st.container(key="card_<id>")) */
+/* Cards */
 [class*="st-key-card_"] {
     background:#fff; border-radius:18px; padding:14px; border:1px solid #F1EBE4;
     box-shadow:0 8px 28px rgba(60,40,30,.08); transition:transform .2s ease, box-shadow .2s ease;
@@ -103,6 +117,51 @@ button[kind^="primary"]:hover, [data-testid^="stBaseButton-primary"]:hover, [dat
 .quote .old { text-decoration:line-through; color:var(--muted); font-size:1.15rem; }
 .quote .new { color:var(--crimson); font-weight:800; font-size:1.8rem; }
 .quote .hint { color:#B35C00; font-weight:500; margin-top:6px; }
+
+/* Hero */
+.hero {
+    height:340px; border-radius:22px; margin-bottom:14px; display:flex; align-items:flex-end;
+    background:linear-gradient(to top, rgba(30,15,15,.65), rgba(30,15,15,.05)), url('__HERO__') center/cover;
+    box-shadow:0 14px 40px rgba(60,40,30,.2);
+}
+.hero-text { padding:28px 34px; }
+.hero-text h1 { color:#fff !important; font-size:2.6rem; font-weight:800; margin:0; }
+.hero-text p { color:#f3e9e2 !important; font-size:1.15rem; margin:4px 0 0; }
+
+/* CSS-only marquee */
+.marquee { direction:ltr; overflow:hidden; white-space:nowrap; background:#fff; border-radius:14px; padding:12px 0;
+    margin-bottom:26px; border:1px solid #F1EBE4; box-shadow:0 4px 14px rgba(0,0,0,.05); }
+.marquee span { display:inline-block; padding-left:100%; font-weight:700; color:var(--crimson); animation:marquee 16s linear infinite; }
+@keyframes marquee { 0% {transform:translateX(0);} 100% {transform:translateX(-100%);} }
+
+/* Empty state */
+.empty-state { text-align:center; background:#fff; border-radius:22px; padding:60px 24px;
+    box-shadow:0 10px 34px rgba(60,40,30,.08); border:1px dashed #E6D6CC; }
+.empty-state .icon { font-size:3.4rem; }
+.empty-state h2 { color:var(--crimson); text-align:center; margin:10px 0 6px; font-weight:800; }
+.empty-state p { color:var(--muted); text-align:center; font-size:1.1rem; }
+
+/* Mobile */
+@media (max-width: 768px) {
+    .block-container { padding:1rem .8rem 3rem !important; }
+    .hero { height:210px; border-radius:16px; }
+    .hero-text { padding:16px 18px; }
+    .hero-text h1 { font-size:1.6rem; }
+    .hero-text p { font-size:.95rem; }
+    .marquee { margin-bottom:16px; padding:9px 0; font-size:.9rem; }
+    [class*="st-key-card_"] img { height:180px; }
+    .st-key-details_box img { max-height:300px; }
+    .quote .new { font-size:1.5rem; }
+    
+    /* מונע מהסרגל צידי להידחס בטלפון */
+    [data-testid="stSidebar"] { min-width: 250px !important; }
+    
+    /* Stack columns */
+    [data-testid="stHorizontalBlock"] { flex-wrap:wrap !important; gap:1rem !important; }
+    [data-testid="stColumn"], [data-testid="column"] { min-width:100% !important; flex:1 1 100% !important; width:100% !important; }
+}
+</style>
+"""
 
 /* Hero */
 .hero {
