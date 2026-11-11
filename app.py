@@ -1,15 +1,6 @@
 """
-Pop-up Space Marketplace - MVP (v3, mobile-first)
+Pop-up Space Marketplace - MVP (v3, mobile-first fixed)
 Run:  pip install "streamlit>=1.39"  &&  streamlit run app.py
-
-Architecture
-------------
-* spaces.json   -> persistent storage (created as [] if missing). Images are stored as Base64 strings.
-* host_price    -> what the store owner wants, per `price_period`.
-* display_price -> round(host_price * 1.12), the only price clients ever see.
-* Discount      -> if the number of requested *periods* (units of the space's price_period)
-                   >= discount_threshold, `discount_percentage` is taken off the total.
-* st.session_state drives routing between the "catalog" and "details" views.
 """
 import base64
 import hmac
@@ -28,13 +19,13 @@ import streamlit as st
 # ----------------------------------------------------------------------------
 # Config & constants
 # ----------------------------------------------------------------------------
-st.set_page_config(page_title="POP-UP CLUB", page_icon="🛍️", layout="wide")
+st.set_page_config(page_title="פופ-אפ בשטח", page_icon="🛍️", layout="wide")
 
 DATA_FILE = Path("spaces.json")
 PLATFORM_FEE = 0.12
-ADMIN_PASSWORD = "dvir2026"              # TODO: move to st.secrets in production
-DVIR_WHATSAPP = "972543024211"          # TODO: real number, international format, no "+"
-MAX_IMAGES = 5                           # per space (keeps spaces.json reasonably small)
+ADMIN_PASSWORD = "dvir2026"
+DAVIR_WHATSAPP = "9725XXXXXXXX"
+MAX_IMAGES = 5
 HERO_IMAGE = "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1800&q=80"
 FALLBACK_IMAGE = "https://images.unsplash.com/photo-1445116572660-236099ec97a0?auto=format&fit=crop&w=900&q=80"
 
@@ -42,23 +33,19 @@ PERIODS = ["לשעה", "ליום", "לסופ״ש", "לשבוע", "לחודש"]
 PERIOD_PLURAL = {"לשעה": "שעות", "ליום": "ימים", "לסופ״ש": "סופי שבוע", "לשבוע": "שבועות", "לחודש": "חודשים"}
 
 # ----------------------------------------------------------------------------
-# Styling: strict RTL, warm high-end look, mobile-first tweaks
+# Styling: Mobile-safe RTL & Warm Aesthetics
 # ----------------------------------------------------------------------------
 CUSTOM_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800&display=swap');
 :root { --crimson:#B3202E; --crimson-dark:#8E1823; --bg:#FBF8F4; --text:#2F2F33; --muted:#7A7A80; }
 
-/* Hide Streamlit chrome */
 #MainMenu {visibility:hidden;}
 footer {visibility:hidden;}
 [data-testid="stDeployButton"] {display:none;}
 [data-testid="stHeader"] {background:transparent;}
 
-/* ---------------------------------------------------- */
-/* תיקון ה-RTL: החלת עברית רק על התוכן ולא על המעטפת    */
-/* זה מה שמונע מסרגל הצד להישבר ולהידחס בטלפון הנייד    */
-/* ---------------------------------------------------- */
+/* RTL applied ONLY to inner content elements to keep mobile drawer functional */
 .block-container, [data-testid="stSidebarContent"], [data-testid="stMarkdownContainer"], 
 label, p, h1, h2, h3, h4, li, input, textarea, .stTabs [data-baseweb="tab-list"], [data-testid="stExpander"] summary {
     direction: rtl; 
@@ -69,15 +56,10 @@ label, p, h1, h2, h3, h4, li, input, textarea, .stTabs [data-baseweb="tab-list"]
 
 .stApp { background:var(--bg); }
 .block-container { padding-top:2rem !important; }
-
-/* נראות סרגל הצד */
 [data-testid="stSidebar"] { background:#fff; box-shadow:-4px 0 24px rgba(0,0,0,.05); border: none !important; }
-
-/* תיקון סליידר המחירים כדי שיעבוד נכון */
 [data-testid="stSlider"] > div { direction:ltr; }
 [data-testid="stSlider"] label { direction:rtl; text-align:right; }
 
-/* במסכים גדולים (מחשב) - העברת סרגל הצד לימין */
 @media (min-width: 769px) { 
     [data-testid="stAppViewContainer"] { flex-direction:row-reverse; } 
 }
@@ -128,7 +110,7 @@ button[kind^="primary"]:hover, [data-testid^="stBaseButton-primary"]:hover, [dat
 .hero-text h1 { color:#fff !important; font-size:2.6rem; font-weight:800; margin:0; }
 .hero-text p { color:#f3e9e2 !important; font-size:1.15rem; margin:4px 0 0; }
 
-/* CSS-only marquee */
+/* Marquee */
 .marquee { direction:ltr; overflow:hidden; white-space:nowrap; background:#fff; border-radius:14px; padding:12px 0;
     margin-bottom:26px; border:1px solid #F1EBE4; box-shadow:0 4px 14px rgba(0,0,0,.05); }
 .marquee span { display:inline-block; padding-left:100%; font-weight:700; color:var(--crimson); animation:marquee 16s linear infinite; }
@@ -141,7 +123,7 @@ button[kind^="primary"]:hover, [data-testid^="stBaseButton-primary"]:hover, [dat
 .empty-state h2 { color:var(--crimson); text-align:center; margin:10px 0 6px; font-weight:800; }
 .empty-state p { color:var(--muted); text-align:center; font-size:1.1rem; }
 
-/* Mobile */
+/* Mobile optimization */
 @media (max-width: 768px) {
     .block-container { padding:1rem .8rem 3rem !important; }
     .hero { height:210px; border-radius:16px; }
@@ -152,52 +134,7 @@ button[kind^="primary"]:hover, [data-testid^="stBaseButton-primary"]:hover, [dat
     [class*="st-key-card_"] img { height:180px; }
     .st-key-details_box img { max-height:300px; }
     .quote .new { font-size:1.5rem; }
-    
-    /* מונע מהסרגל צידי להידחס בטלפון */
-    [data-testid="stSidebar"] { min-width: 250px !important; }
-    
-    /* Stack columns */
-    [data-testid="stHorizontalBlock"] { flex-wrap:wrap !important; gap:1rem !important; }
-    [data-testid="stColumn"], [data-testid="column"] { min-width:100% !important; flex:1 1 100% !important; width:100% !important; }
-}
-</style>
-"""
-
-/* Hero */
-.hero {
-    height:340px; border-radius:22px; margin-bottom:14px; display:flex; align-items:flex-end;
-    background:linear-gradient(to top, rgba(30,15,15,.65), rgba(30,15,15,.05)), url('__HERO__') center/cover;
-    box-shadow:0 14px 40px rgba(60,40,30,.2);
-}
-.hero-text { padding:28px 34px; }
-.hero-text h1 { color:#fff !important; font-size:2.6rem; font-weight:800; margin:0; }
-.hero-text p { color:#f3e9e2 !important; font-size:1.15rem; margin:4px 0 0; }
-
-/* CSS-only marquee */
-.marquee { direction:ltr; overflow:hidden; white-space:nowrap; background:#fff; border-radius:14px; padding:12px 0;
-    margin-bottom:26px; border:1px solid #F1EBE4; box-shadow:0 4px 14px rgba(0,0,0,.05); }
-.marquee span { display:inline-block; padding-left:100%; font-weight:700; color:var(--crimson); animation:marquee 16s linear infinite; }
-@keyframes marquee { 0% {transform:translateX(0);} 100% {transform:translateX(-100%);} }
-
-/* Empty state */
-.empty-state { text-align:center; background:#fff; border-radius:22px; padding:60px 24px;
-    box-shadow:0 10px 34px rgba(60,40,30,.08); border:1px dashed #E6D6CC; }
-.empty-state .icon { font-size:3.4rem; }
-.empty-state h2 { color:var(--crimson); text-align:center; margin:10px 0 6px; font-weight:800; }
-.empty-state p { color:var(--muted); text-align:center; font-size:1.1rem; }
-
-/* Mobile */
-@media (max-width: 768px) {
-    .block-container { padding:1rem .8rem 3rem !important; }
-    .hero { height:210px; border-radius:16px; }
-    .hero-text { padding:16px 18px; }
-    .hero-text h1 { font-size:1.6rem; }
-    .hero-text p { font-size:.95rem; }
-    .marquee { margin-bottom:16px; padding:9px 0; font-size:.9rem; }
-    [class*="st-key-card_"] img { height:180px; }
-    .st-key-details_box img { max-height:300px; }
-    .quote .new { font-size:1.5rem; }
-    /* Stack columns */
+    [data-testid="stSidebar"] { min-width: 260px !important; }
     [data-testid="stHorizontalBlock"] { flex-wrap:wrap !important; gap:1rem !important; }
     [data-testid="stColumn"], [data-testid="column"] { min-width:100% !important; flex:1 1 100% !important; width:100% !important; }
 }
@@ -205,12 +142,10 @@ button[kind^="primary"]:hover, [data-testid^="stBaseButton-primary"]:hover, [dat
 """.replace("__HERO__", HERO_IMAGE)
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
-
 # ----------------------------------------------------------------------------
-# Data layer (spaces.json + Base64 images)
+# Data layer
 # ----------------------------------------------------------------------------
 def normalize(space: dict) -> dict:
-    """Fill defaults so older/partial records never break the UI."""
     space.setdefault("price_period", "לסופ״ש")
     space.setdefault("discount_threshold", 0)
     space.setdefault("discount_percentage", 0)
@@ -219,9 +154,7 @@ def normalize(space: dict) -> dict:
     space.setdefault("store_type", "")
     return space
 
-
 def load_spaces() -> list[dict]:
-    """Read spaces.json; create it with [] if missing or unreadable."""
     if not DATA_FILE.exists():
         DATA_FILE.write_text("[]", encoding="utf-8")
         return []
@@ -231,13 +164,10 @@ def load_spaces() -> list[dict]:
     except (json.JSONDecodeError, OSError):
         return []
 
-
 def save_spaces(spaces: list[dict]) -> None:
     DATA_FILE.write_text(json.dumps(spaces, ensure_ascii=False, indent=1), encoding="utf-8")
 
-
 def encode_image(uploaded) -> str:
-    """Uploaded file -> (resized, JPEG) -> Base64 string. Falls back to raw bytes without Pillow."""
     raw = uploaded.getvalue()
     try:
         from PIL import Image, ImageOps
@@ -250,17 +180,13 @@ def encode_image(uploaded) -> str:
         pass
     return base64.b64encode(raw).decode("ascii")
 
-
 @st.cache_data(show_spinner=False)
 def decode_image(b64: str) -> bytes:
     return base64.b64decode(b64)
 
-
 def get_images(space: dict) -> list:
-    """Decoded images for st.image; a placeholder URL if the space has none."""
     imgs = [decode_image(b) for b in space["images"]]
     return imgs or [space.get("image_url") or FALLBACK_IMAGE]
-
 
 # ----------------------------------------------------------------------------
 # Pricing logic
@@ -268,19 +194,13 @@ def get_images(space: dict) -> list:
 def half_up(x: float) -> int:
     return int(x + 0.5)
 
-
 def display_price(space: dict) -> int:
-    """Price per period shown to clients: host_price + 12%."""
     return half_up(space["host_price"] * (1 + PLATFORM_FEE))
 
-
 def requested_days(start: date, end: date) -> int:
-    """Inclusive day count (Fri-Sat = 2 days). 0 if the range is invalid."""
     return max(0, (end - start).days + 1)
 
-
 def daily_hours(open_hours: str) -> int:
-    """Hours per day parsed from '08:00-16:00' (fallback: 8)."""
     m = re.search(r"(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})", open_hours)
     if not m:
         return 8
@@ -288,32 +208,26 @@ def daily_hours(open_hours: str) -> int:
     minutes = (h2 * 60 + m2) - (h1 * 60 + m1)
     return max(1, math.ceil((minutes if minutes > 0 else minutes + 1440) / 60))
 
-
 def periods_for(space: dict, days: int) -> int:
-    """Convert requested days into the space's pricing units."""
     p = space["price_period"]
     if p == "לשעה":
         return days * daily_hours(space["open_hours"])
     if p == "ליום":
         return days
     if p == "לסופ״ש":
-        return math.ceil(days / 2)      # one weekend = 2 days
+        return math.ceil(days / 2)
     if p == "לשבוע":
         return math.ceil(days / 7)
-    return math.ceil(days / 30)          # לחודש
-
+    return math.ceil(days / 30)
 
 def has_discount(space: dict) -> bool:
     return space["discount_threshold"] > 0 and space["discount_percentage"] > 0
-
 
 def discount_badge_text(space: dict) -> str:
     return (f"🎁 {space['discount_percentage']}% הנחה להזמנה של "
             f"{space['discount_threshold']} {PERIOD_PLURAL[space['price_period']]} ומעלה!")
 
-
 def compute_quote(space: dict, start: date, end: date) -> dict:
-    """Full price breakdown for the requested date range."""
     days = requested_days(start, end)
     periods = periods_for(space, days) if days else 0
     original = display_price(space) * periods
@@ -321,32 +235,26 @@ def compute_quote(space: dict, start: date, end: date) -> dict:
     final = half_up(original * (1 - space["discount_percentage"] / 100)) if qualifies else original
     return {"days": days, "periods": periods, "original": original, "final": final, "qualifies": qualifies}
 
-
 # ----------------------------------------------------------------------------
-# Session state / routing
+# Router State
 # ----------------------------------------------------------------------------
-st.session_state.setdefault("view", "catalog")      # "catalog" | "details"
+st.session_state.setdefault("view", "catalog")
 st.session_state.setdefault("selected_id", None)
 st.session_state.setdefault("wa_url", None)
-
 
 def open_details(space_id: str) -> None:
     st.session_state.update(view="details", selected_id=space_id, wa_url=None)
 
-
 def back_to_catalog() -> None:
     st.session_state.update(view="catalog", selected_id=None, wa_url=None)
 
-
 # ----------------------------------------------------------------------------
-# Sidebar: filters + hidden admin panel
+# Sidebar components
 # ----------------------------------------------------------------------------
 def next_friday(today: date) -> date:
     return today + timedelta(days=(4 - today.weekday()) % 7)
 
-
 def render_filters(spaces: list[dict]) -> dict:
-    """Yad2-style filters. Renders nothing (returns defaults) when there are no spaces."""
     start_default = next_friday(date.today())
     f = {"start": start_default, "end": start_default + timedelta(days=1), "hoods": [], "types": [], "budget": 10**9}
     if not spaces:
@@ -362,14 +270,12 @@ def render_filters(spaces: list[dict]) -> dict:
     types = sorted({s["store_type"] for s in spaces if s["store_type"]})
     f["types"] = st.multiselect("סוג עסק", types, placeholder="כל סוגי העסקים")
 
-    top = max(50, -(-max(display_price(s) for s in spaces) // 50) * 50)  # round up to multiple of 50
+    top = max(50, -(-max(display_price(s) for s in spaces) // 50) * 50)
     f["budget"] = st.slider("תקציב מקסימלי (₪)", 0, top, top, step=50)
     st.caption("התקציב מושווה למחיר ליחידת התמחור של כל חלל")
     return f
 
-
 def render_admin_panel(spaces: list[dict]) -> None:
-    """Password-protected add / delete panel."""
     with st.expander("ניהול מערכת (Admin)"):
         if msg := st.session_state.pop("flash", None):
             st.success(msg)
@@ -421,13 +327,11 @@ def render_admin_panel(spaces: list[dict]) -> None:
                 st.session_state.flash = "החלל נמחק ✅"
                 st.rerun()
 
-
 # ----------------------------------------------------------------------------
 # Views
 # ----------------------------------------------------------------------------
 def price_html(space: dict) -> str:
     return f'<div class="price">{display_price(space):,} ₪ <span>/ {space["price_period"].lstrip("ל")}</span></div>'
-
 
 def render_hero_and_marquee() -> None:
     st.markdown(
@@ -441,7 +345,6 @@ def render_hero_and_marquee() -> None:
         unsafe_allow_html=True,
     )
 
-
 def render_empty_state() -> None:
     st.markdown(
         """
@@ -454,7 +357,6 @@ def render_empty_state() -> None:
         """,
         unsafe_allow_html=True,
     )
-
 
 def render_catalog(spaces: list[dict], f: dict) -> None:
     render_hero_and_marquee()
@@ -472,7 +374,7 @@ def render_catalog(spaces: list[dict], f: dict) -> None:
         st.info("לא נמצאו חללים התואמים את הסינון. נסו להרחיב את החיפוש.")
         return
 
-    per_row = 3  # CSS stacks these to a single column on mobile
+    per_row = 3
     for i in range(0, len(results), per_row):
         for col, s in zip(st.columns(per_row), results[i:i + per_row]):
             with col, st.container(key=f"card_{s['id']}"):
@@ -488,9 +390,7 @@ def render_catalog(spaces: list[dict], f: dict) -> None:
                 st.button("לפרטים והרשמה", key=f"btn_{s['id']}", type="primary",
                           on_click=open_details, args=(s["id"],))
 
-
 def render_quote(space: dict, q: dict) -> None:
-    """Price summary: crossed-out original vs discounted total when the discount applies."""
     if q["days"] == 0:
         st.error("טווח התאריכים אינו תקין - תקנו אותו בתפריט הצד")
         return
@@ -512,7 +412,6 @@ def render_quote(space: dict, q: dict) -> None:
         unsafe_allow_html=True,
     )
 
-
 def build_whatsapp_url(space: dict, q: dict, brand: str, insta: str, phone: str, f: dict) -> str:
     lines = [
         "שלום דביר, אשמח לשריין חלל פופ-אפ 🙌",
@@ -523,12 +422,11 @@ def build_whatsapp_url(space: dict, q: dict, brand: str, insta: str, phone: str,
     if q["qualifies"]:
         lines.append(f"הנחה: {space['discount_percentage']}% (במקום {q['original']:,} ₪)")
     lines += [f"סה״כ לתשלום: {q['final']:,} ₪", f"מותג: {brand}", f"אינסטגרם: {insta}", f"טלפון: {phone}"]
-    return f"https://wa.me/{DVIR_WHATSAPP}?text={quote(chr(10).join(lines))}"
-
+    return f"https://wa.me/{DAVIR_WHATSAPP}?text={quote(chr(10).join(lines))}"
 
 def render_details(spaces: list[dict], f: dict) -> None:
     space = next((s for s in spaces if s["id"] == st.session_state.selected_id), None)
-    if space is None:  # e.g. deleted by admin while being viewed
+    if space is None:
         back_to_catalog()
         st.rerun()
 
@@ -539,7 +437,6 @@ def render_details(spaces: list[dict], f: dict) -> None:
     if has_discount(space):
         st.markdown(f'<div class="badge">{html.escape(discount_badge_text(space))}</div>', unsafe_allow_html=True)
 
-    # Image gallery (tabs when there is more than one image)
     images = get_images(space)
     with st.container(key="details_box"):
         if len(images) > 1:
@@ -565,14 +462,9 @@ def render_details(spaces: list[dict], f: dict) -> None:
             st.markdown(
                 """
                 **1. הזמנה:** השיריון מאושר רק לאחר אישור סופי של הנהלת הפלטפורמה ובעל העסק.
-
                 **2. תשלום:** התשלום מתבצע מראש. אי תשלום עד 48 שעות מהאישור יבטל את השיריון.
-
                 **3. ביטול:** עד 7 ימים לפני המועד - החזר מלא. 3-7 ימים - החזר של 50%. פחות מ-72 שעות - ללא החזר.
-
                 **4. אחריות:** המותג אחראי לסחורתו ולניקיון הפינה בסיום האירוע.
-
-                *(טקסט לדוגמה בלבד - יש להחליף בתקנון משפטי מאושר)*
                 """
             )
         agreed = st.checkbox("קראתי ואישרתי את התקנון")
@@ -598,11 +490,9 @@ def render_details(spaces: list[dict], f: dict) -> None:
         else:
             st.session_state.wa_url = build_whatsapp_url(space, q, brand.strip(), insta.strip(), phone.strip(), f)
 
-    # link_button can't live inside st.form, so it is rendered right after it
     if st.session_state.wa_url:
         st.success("הבקשה מוכנה! נשאר רק לשלוח אותה בוואטסאפ 👇")
         st.link_button("לחץ כאן לשליחת הבקשה בוואטסאפ", st.session_state.wa_url, type="primary")
-
 
 # ----------------------------------------------------------------------------
 # Main router
