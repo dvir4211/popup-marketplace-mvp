@@ -33,7 +33,7 @@ st.set_page_config(page_title="פופ-אפ בשטח", page_icon="🛍️", layou
 DATA_FILE = Path("spaces.json")
 PLATFORM_FEE = 0.12
 ADMIN_PASSWORD = "dvir2026"              # TODO: move to st.secrets in production
-DAVIR_WHATSAPP = "9725XXXXXXXX"          # TODO: real number, international format, no "+"
+DVIR_WHATSAPP = "972543024211"          # TODO: real number, international format, no "+"
 MAX_IMAGES = 5                           # per space (keeps spaces.json reasonably small)
 HERO_IMAGE = "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1800&q=80"
 FALLBACK_IMAGE = "https://images.unsplash.com/photo-1445116572660-236099ec97a0?auto=format&fit=crop&w=900&q=80"
@@ -464,7 +464,7 @@ def build_whatsapp_url(space: dict, q: dict, brand: str, insta: str, phone: str,
     if q["qualifies"]:
         lines.append(f"הנחה: {space['discount_percentage']}% (במקום {q['original']:,} ₪)")
     lines += [f"סה״כ לתשלום: {q['final']:,} ₪", f"מותג: {brand}", f"אינסטגרם: {insta}", f"טלפון: {phone}"]
-    return f"https://wa.me/{DAVIR_WHATSAPP}?text={quote(chr(10).join(lines))}"
+    return f"https://wa.me/{DVIR_WHATSAPP}?text={quote(chr(10).join(lines))}"
 
 
 def render_details(spaces: list[dict], f: dict) -> None:
