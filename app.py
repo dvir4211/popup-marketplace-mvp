@@ -28,7 +28,7 @@ import streamlit as st
 # ----------------------------------------------------------------------------
 # Config & constants
 # ----------------------------------------------------------------------------
-st.set_page_config(page_title="פופ-אפ בשטח", page_icon="🛍️", layout="wide")
+st.set_page_config(page_title="POP-UP CLUB", page_icon="🛍️", layout="wide")
 
 DATA_FILE = Path("spaces.json")
 PLATFORM_FEE = 0.12
